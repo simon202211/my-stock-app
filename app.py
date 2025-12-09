@@ -4,51 +4,69 @@ import requests
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- 1. 页面配置 (清爽白底风格) ---
+# --- 1. 页面配置 (APP级质感) ---
 st.set_page_config(page_title="风格罗盘", layout="wide", page_icon="🧭")
 
-# 注入CSS：强制白色背景，卡片化设计，优化字体
+# 注入高级CSS：卡片悬浮感、大字体、护眼白底
 st.markdown("""
 <style>
-    /* 全局背景设为白色 */
+    /* 全局背景纯白 */
     .stApp {
-        background-color: #FFFFFF;
-        color: #000000;
+        background-color: #FAFAFA;
+        color: #333333;
     }
-    /* 标题颜色 */
-    h1, h2, h3 {
-        color: #1f77b4 !important;
-        font-family: "Microsoft YaHei", sans-serif;
+    /* 标题样式 */
+    h1 {
+        color: #000000 !important;
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        font-weight: 800;
+        font-size: 24px !important;
+        margin-bottom: 0px;
     }
-    /* 指标卡片样式 */
+    /* 卡片容器 */
+    .metric-container {
+        display: flex;
+        justify-content: space-between;
+        gap: 10px;
+        margin-top: 10px;
+        margin-bottom: 20px;
+    }
+    /* 单个卡片样式 */
     .metric-card {
-        background-color: #F0F2F6;
-        border-radius: 10px;
-        padding: 15px;
+        background-color: #FFFFFF;
+        border-radius: 12px;
+        padding: 16px;
+        flex: 1;
         text-align: center;
-        box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05); /* 柔和阴影 */
+        border: 1px solid #F0F0F0;
     }
-    .big-number {
-        font-size: 26px !important;
-        font-weight: bold;
-        color: #000000;
+    .metric-title {
+        font-size: 13px;
+        color: #888888;
+        margin-bottom: 5px;
     }
-    .label-text {
-        font-size: 14px;
-        color: #555555;
+    .metric-value {
+        font-size: 28px;
+        font-weight: 700;
+        font-family: 'Roboto', sans-serif;
     }
-    /* 隐藏Streamlit默认的菜单 */
+    .metric-delta {
+        font-size: 12px;
+        font-weight: 500;
+        margin-top: 5px;
+    }
+    /* 去除默认页脚 */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
 </style>
 """, unsafe_allow_html=True)
 
-# --- 2. 核心数据函数 (极速直连) ---
+# --- 2. 核心数据函数 ---
 @st.cache_data(ttl=600)
 def get_data_stable():
     try:
         def fetch_one(secid):
-            # 东方财富接口
             url = f"https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={secid}&fields1=f1&fields2=f51,f53&klt=101&fqt=1&beg=20240101&end=20991231"
             res = requests.get(url, timeout=10)
             data = res.json()
@@ -66,123 +84,119 @@ def get_data_stable():
         df['Ratio'] = df['收盘_G'] / df['收盘_V']
         df['MA20'] = df['Ratio'].rolling(window=20).mean()
         return df
-    except Exception as e:
+    except:
         return pd.DataFrame()
 
-# --- 3. 主界面逻辑 ---
+# --- 3. 主逻辑 ---
 st.title("🧭 沪深300 风格罗盘")
-st.caption("数据来源：东方财富实时接口 | 针对 600026 策略优化")
+st.caption(f"更新时间: {datetime.now().strftime('%H:%M')} | 600026 专属策略")
 
-with st.spinner('正在获取最新数据...'):
-    df = get_data_stable()
+df = get_data_stable()
 
 if df.empty:
-    st.error("网络连接超时，请点击右上角菜单 Rerun 重试")
+    st.error("网络波动，请刷新页面")
     st.stop()
 
-# 计算最新数据
+# 计算
 last = df.iloc[-1]
 prev = df.iloc[-2]
 change = last['Ratio'] - prev['Ratio']
 ma20 = last['MA20']
-is_bull = last['Ratio'] > ma20 # 蓝线在黄线之上 (成长强)
+is_bull = last['Ratio'] > ma20
 
-# --- 4. 关键指标展示区 (使用自定义HTML卡片) ---
-col1, col2 = st.columns(2)
+# 颜色定义
+color_up = "#FF4D4F" # 红
+color_down = "#28C840" # 绿 (下跌为绿，但在Ratio里下跌代表价值强，是好事)
+val_color = color_up if change > 0 else color_down
 
-with col1:
-    st.markdown(f"""
+# --- 4. 漂亮的指标卡片 (HTML) ---
+st.markdown(f"""
+<div class="metric-container">
     <div class="metric-card">
-        <div class="label-text">当前强弱比值 (Ratio)</div>
-        <div class="big-number" style="color: {'#d62728' if change>0 else '#2ca02c'};">
-            {last['Ratio']:.4f}
-        </div>
-        <div class="label-text">较昨日: {'⬆️' if change>0 else '⬇️'} {abs(change):.4f}</div>
+        <div class="metric-title">当前强弱比值 (Ratio)</div>
+        <div class="metric-value" style="color: {val_color}">{last['Ratio']:.4f}</div>
+        <div class="metric-delta">较昨日: {'⬆' if change>0 else '⬇'} {abs(change):.4f}</div>
     </div>
-    """, unsafe_allow_html=True)
-
-with col2:
-    st.markdown(f"""
     <div class="metric-card">
-        <div class="label-text">20日生命线</div>
-        <div class="big-number" style="color: #ff7f0e;">
-            {ma20:.4f}
-        </div>
-        <div class="label-text">{'🔥 成长进攻区' if is_bull else '🛡️ 价值防守区'}</div>
+        <div class="metric-title">20日生命线 (MA20)</div>
+        <div class="metric-value" style="color: #FF9900">{ma20:.4f}</div>
+        <div class="metric-delta">{'🔥 成长进攻' if is_bull else '🛡️ 价值防守'}</div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
-st.write("") # 空一行
-
-# --- 5. 600026 策略卡片 (红绿灯模式) ---
-# 使用 Streamlit 原生容器，在白色背景下更清晰
+# --- 5. 策略胶囊 ---
 if is_bull:
-    # 逆风局
-    with st.container():
-        st.error("⚠️ **逆风局 (成长主导)**")
-        st.markdown("""
-        **市场风向：** 资金正在抢筹科技/新能源，冷落价值股。
-        
-        **🚢 600026 操作建议：**
-        * **不要追涨：** 容易冲高回落。
-        * **逢高做T：** 拉升是卖点。
-        """)
+    st.error("⚠️ **逆风局 (成长强·价值弱)**")
+    st.markdown("**🚢 中远海能策略：** 资金被科技吸走，容易阴跌。**建议逢高减仓，切勿追涨。**")
 else:
-    # 顺风局
-    with st.container():
-        st.success("✅ **顺风局 (价值主导)**")
-        st.markdown("""
-        **市场风向：** 资金避险，回流红利/银行/航运。
-        
-        **🚢 600026 操作建议：**
-        * **敢于低吸：** 它是资金避风港。
-        * **持股待涨：** 耐心持有。
-        """)
+    st.success("✅ **顺风局 (价值强·成长弱)**")
+    st.markdown("**🚢 中远海能策略：** 资金回流避险，海能抗跌。**建议持股待涨，敢于低吸。**")
 
-# --- 6. 趋势图形 (已锁定，防止误触) ---
-st.write("---")
-st.subheader("📊 2024年至今走势图")
+# --- 6. 旗舰级图表 (带图例和标注) ---
+st.write("")
+st.subheader("📊 趋势走势图")
 
 fig = go.Figure()
 
-# 画蓝线 (Ratio)
+# 蓝色实线：Ratio
 fig.add_trace(go.Scatter(
     x=df['Date'], y=df['Ratio'], 
-    mode='lines', name='强弱比率 (Ratio)',
-    line=dict(color='#1f77b4', width=3) # 深蓝色
+    mode='lines', 
+    name='🔵 强弱比值 (Ratio)', # 加上emoji让图例更显眼
+    line=dict(color='#0052D9', width=3) # 科技蓝
 ))
 
-# 画黄线 (MA20)
+# 橙色虚线：MA20
 fig.add_trace(go.Scatter(
     x=df['Date'], y=df['MA20'], 
-    mode='lines', name='20日生命线',
-    line=dict(color='#ff7f0e', width=2, dash='dash') # 橙色虚线
+    mode='lines', 
+    name='🟠 20日均线', 
+    line=dict(color='#FF9900', width=2, dash='dash') # 警示橙
 ))
 
-# 优化图表布局 (白底)
+# 添加最新点位的文字标注 (直接显示在图上)
+fig.add_trace(go.Scatter(
+    x=[last['Date']], y=[last['Ratio']],
+    mode='markers+text',
+    name='最新点',
+    text=[f"{last['Ratio']:.3f}"],
+    textposition="top center",
+    marker=dict(color='red', size=8),
+    showlegend=False
+))
+
+# 布局优化
 fig.update_layout(
-    plot_bgcolor='white',   # 图表区域背景白
-    paper_bgcolor='white',  # 外围背景白
-    font=dict(color='black'), # 字体黑
-    margin=dict(l=10, r=10, t=30, b=10), # 边距紧凑
-    height=400,
+    plot_bgcolor='#FFFFFF',
+    paper_bgcolor='#FFFFFF',
+    margin=dict(l=10, r=10, t=10, b=10),
+    height=380,
+    # 图例设置 (关键优化)
+    legend=dict(
+        orientation="h",   # 横向排列
+        yanchor="bottom", y=1.02, # 放在图表上方
+        xanchor="center", x=0.5,  # 居中显示
+        bgcolor="rgba(255,255,255,0.9)", # 半透明白底防遮挡
+        bordercolor="#E0E0E0", borderwidth=1,
+        font=dict(size=14, color="black")
+    ),
     xaxis=dict(
-        showgrid=True, 
-        gridcolor='#eeeeee', # 浅灰网格
-        tickformat='%Y-%m'
+        showgrid=True, gridcolor='#F0F0F0',
+        tickformat='%m-%d', # 只显示月-日
+        tickfont=dict(size=12, color='gray')
     ),
     yaxis=dict(
-        showgrid=True, 
-        gridcolor='#eeeeee',
-        zeroline=False
-    ),
-    legend=dict(
-        orientation="h", # 图例横向排布
-        y=1.1, x=0
+        showgrid=True, gridcolor='#F0F0F0',
+        tickfont=dict(size=12, color='gray')
     )
 )
 
-# 关键配置：禁用交互，防止手机误触！
+# 锁定图形，禁止交互
 st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
 
-st.caption("注：图形已锁定，防止手机滑动时误触缩放。")
+st.markdown("""
+<div style="text-align: center; color: #999; font-size: 12px; margin-top: 10px;">
+    🔵 蓝线在橙线之上 = 成长强 | 🔵 蓝线在橙线之下 = 价值强
+</div>
+""", unsafe_allow_html=True)
