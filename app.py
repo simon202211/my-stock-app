@@ -138,4 +138,22 @@ fig.update_layout(
     margin=dict(l=10, r=10, t=10, b=10), height=380,
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5, bgcolor="rgba(255,255,255,0.9)", bordercolor="#E0E0E0", borderwidth=1),
     
-    xaxis=dict
+    xaxis=dict(
+        showgrid=True, gridcolor='#F5F5F5',
+        # 关键修正：显示年份和月份 (例如 2024-07)
+        tickformat='%Y-%m', 
+        dtick="M3", # 每3个月显示一个刻度，避免太拥挤
+        tickfont=dict(size=11, color='#666666'),
+        linecolor='#E0E0E0'
+    ),
+    
+    yaxis=dict(
+        showgrid=True, gridcolor='#F5F5F5',
+        tickfont=dict(size=11, color='#666666'),
+        zeroline=False
+    ),
+    hovermode="x unified" # 交互时同时显示两条线的数据
+)
+
+# 锁定图形
+st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
